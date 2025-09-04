@@ -8,6 +8,8 @@ TagManager:
   - StartMenu
   - ScoreText
   - HighScoreText
+  - PauseButton
+  - ResumeButton
   layers:
   - Default
   - TransparentFX
