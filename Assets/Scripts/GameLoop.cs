@@ -1,9 +1,9 @@
 ﻿using System;
 using UnityEngine;
+using UnityEngine.UI;
 using TMPro;
 using System.Collections;
 using UnityEngine.SceneManagement;
-using UnityEngine.SocialPlatforms.Impl;
 
 [DefaultExecutionOrder(-100)]
 public class GameLoop : MonoBehaviour
@@ -23,6 +23,13 @@ public class GameLoop : MonoBehaviour
     [SerializeField] private string scoreTextTag = "ScoreText";
     [SerializeField] private TextMeshProUGUI highScoreText;
     [SerializeField] private string highScoreTag = "HighScoreText";
+    [SerializeField] private string pauseButtonTag = "PauseButton";
+    [SerializeField] private Button pauseButton;
+    [SerializeField] private string resumeButtonTag = "ResumeButton";
+    [SerializeField] private Button resumeButton;
+    [SerializeField] private GameObject pauseMenu;
+
+
 
     [Header("Perf / Platform")]
     [SerializeField] private int targetFrameRate = 60;
@@ -83,14 +90,23 @@ public class GameLoop : MonoBehaviour
     {
         //PlayerPrefs.DeleteKey("HighScore"); 
         highScore = PlayerPrefs.GetInt("HighScore", 0);
+
         TryAutoBindScoreText();
+        TryAutoBindButtons(); // 🎯 Yeni satır
+
         UpdateScoreUI();
 
         if (startPaused) Pause();
         else Resume();
 
         StartScoreRoutineIfNeeded();
+
+        if (pauseButton != null)
+            pauseButton.onClick.AddListener(TogglePause);
+       
+        pauseMenu.SetActive(false);
     }
+
 
     void Update()
     {
@@ -101,8 +117,28 @@ public class GameLoop : MonoBehaviour
     // ---------- UI Binding ----------
     private void OnSceneLoadedRebind(Scene scene, LoadSceneMode mode)
     {
-        if (!scoreText) TryAutoBindScoreText();
+        TryAutoBindScoreText();   // Skor textlerini yeniden bul
+        TryAutoBindButtons();     // 🎯 Pause butonunu yeniden bul
         UpdateScoreUI();
+
+        if (pauseButton != null)
+        {
+            pauseButton.onClick.RemoveAllListeners();
+            pauseButton.onClick.AddListener(TogglePause);
+        }
+        if (resumeButton != null) 
+        {
+            resumeButton.onClick.RemoveAllListeners();
+            resumeButton.onClick.AddListener(TogglePause);
+        }
+
+        if (pauseMenu != null)
+            pauseMenu.SetActive(false); // Menü gizle
+        else
+            pauseMenu = GameObject.Find("PauseMenu");
+            pauseMenu.SetActive(false); // Menü gizle
+
+
     }
 
     void TryAutoBindScoreText()
@@ -117,6 +153,20 @@ public class GameLoop : MonoBehaviour
         {
             var go = GameObject.FindGameObjectWithTag(highScoreTag);
             if (go) highScoreText = go.GetComponent<TextMeshProUGUI>();
+        }
+    }
+
+    private void TryAutoBindButtons()
+    {
+        if (!pauseButton)
+        {
+            var go = GameObject.FindGameObjectWithTag("PauseButton");
+            if (go) pauseButton = go.GetComponent<Button>();
+        }
+        if (!resumeButton)
+        {
+            var go = GameObject.FindGameObjectWithTag("ResumeButton");
+            if (go) resumeButton = go.GetComponent<Button>();
         }
     }
 
@@ -192,6 +242,22 @@ public class GameLoop : MonoBehaviour
         if (dir) dir.ShowMenu();
     }
 
+    public void TogglePause()
+    {
+        if (isPaused && !isGameOver)
+        {
+            Resume();
+            if (pauseMenu != null)
+                pauseMenu.SetActive(false);
+        }
+        else if (!isPaused && !isGameOver)
+        {
+            Pause();
+            if (pauseMenu != null)
+                pauseMenu.SetActive(true);
+        }
+    }
+
     public void Pause()
     {
         if (isPaused) return;
@@ -207,7 +273,6 @@ public class GameLoop : MonoBehaviour
         Time.timeScale = 0f;
         OnPause?.Invoke();
     }
-
     /// <summary>Pause'dan oyuna dönüş. (SceneDirector Gameplay'i açtıktan sonra çağırmalı)</summary>
     public void Resume()
     {
@@ -215,13 +280,11 @@ public class GameLoop : MonoBehaviour
         if (!isPaused && !isGameOver) return;
         if (resumeRoutine != null) return;
 
-        resumeRoutine = StartCoroutine(Co_ResumeDelayed());
+        resumeRoutine = StartCoroutine(Co_Resume());
     }
 
-    private IEnumerator Co_ResumeDelayed()
+    private IEnumerator Co_Resume()
     {
-        if (resumeDelaySeconds > 0f)
-            yield return new WaitForSecondsRealtime(resumeDelaySeconds);
 
         // Beklerken iptal nedeni oluştu mu?
         if (isGameOver || !isPaused)
